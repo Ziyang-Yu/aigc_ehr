@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Directory to watch for changes
-WATCHED_DIR="/home/ziyang/co-training"
+WATCHED_DIR="/home/ziyang/aigc_ehr"
 
 # Function to convert paths
 convert_path() {
     local old_path="$1"
-    local new_path="${old_path/#\/home\/ziyang/\/root}"
+    local new_path="${old_path/\/home\/ziyang\/aigc_ehr/\/home\/ericyu8817\/aigc_ehr}"
     echo "$new_path"
 }
 # # Remote destination
