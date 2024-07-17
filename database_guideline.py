@@ -796,8 +796,10 @@ class INPUTEVENTS_MV(BaseModel):
     CONTINUEINNEXTDEPT: int = AUTOPOPULATED  # SMALLINT
     CANCELREASON: int = AUTOPOPULATED  # SMALLINT
     STATUSDESCRIPTION: str = AUTOPOPULATED  # VARCHAR(30)
-    COMMENTS_STATUS: str = AUTOPOPULATED  # VARCHAR(30)
-    COMMENTS_TITLE: str = AUTOPOPULATED  # VARCHAR(100)
+    #COMMENTS_STATUS: str = AUTOPOPULATED  # VARCHAR(30)
+    #COMMENTS_TITLE: str = AUTOPOPULATED  # VARCHAR(100)
+    COMMENTS_EDITEDBY: str = AUTOPOPULATED #VARCHAR(30)
+    COMMENTS_CANCELEDBY: str = AUTOPOPULATED #VARCHAR(30)
     COMMENTS_DATE: str = AUTOPOPULATED  # TIMESTAMP(0)
     ORIGINALAMOUNT: float = AUTOPOPULATED  # DOUBLE PRECISION
     ORIGINALRATE: float = AUTOPOPULATED  # DOUBLE PRECISION
@@ -809,7 +811,7 @@ class INPUTEVENTS_MV(BaseModel):
                RATE, RATEUOM, STORETIME, CGID, ORDERID, LINKORDERID, ORDERCATEGORYNAME, 
                SECONDARYORDERCATEGORYNAME, ORDERCOMPONENTTYPEDESCRIPTION, ORDERCATEGORYDESCRIPTION, 
                PATIENTWEIGHT, TOTALAMOUNT, TOTALAMOUNTUOM, ISOPENBAG, CONTINUEINNEXTDEPT, 
-               CANCELREASON, STATUSDESCRIPTION, COMMENTS_STATUS, COMMENTS_TITLE, COMMENTS_DATE, 
+               CANCELREASON, STATUSDESCRIPTION, COMMENTS_EDITEDBY, COMMENTS_CANCELEDBY, COMMENTS_DATE, 
                ORIGINALAMOUNT, ORIGINALRATE
         FROM inputevents_mv
         WHERE SUBJECT_ID = ? AND HADM_ID = ? AND ICUSTAY_ID = ?
@@ -823,7 +825,7 @@ class INPUTEVENTS_MV(BaseModel):
             self.CGID, self.ORDERID, self.LINKORDERID, self.ORDERCATEGORYNAME, self.SECONDARYORDERCATEGORYNAME, \
             self.ORDERCOMPONENTTYPEDESCRIPTION, self.ORDERCATEGORYDESCRIPTION, self.PATIENTWEIGHT, \
             self.TOTALAMOUNT, self.TOTALAMOUNTUOM, self.ISOPENBAG, self.CONTINUEINNEXTDEPT, self.CANCELREASON, \
-            self.STATUSDESCRIPTION, self.COMMENTS_STATUS, self.COMMENTS_TITLE, self.COMMENTS_DATE, \
+            self.STATUSDESCRIPTION, self.COMMENTS_, self.COMMENTS_TITLE, self.COMMENTS_DATE, \
             self.ORIGINALAMOUNT, self.ORIGINALRATE = row
 
             # Convert string timestamps to datetime objects if needed
@@ -1013,7 +1015,7 @@ class NOTEEVENTS(BaseModel):
             self.TEXT = row
 
             # Convert string timestamps to datetime objects if needed
-            self.CHARTDATE = datetime.strptime(self.CHARTDATE, '%Y-%m-%d %H:%M:%S') if self.CHARTDATE else None
+            self.CHARTDATE = datetime.strptime(self.CHARTDATE, '%Y-%m-%d') if self.CHARTDATE else None
             self.CHARTTIME = datetime.strptime(self.CHARTTIME, '%Y-%m-%d %H:%M:%S') if self.CHARTTIME else None
             self.STORETIME = datetime.strptime(self.STORETIME, '%Y-%m-%d %H:%M:%S') if self.STORETIME else None
 
@@ -1383,46 +1385,46 @@ class TRANSFERS(BaseModel):
     LOS: int = AUTOPOPULATED  # INT
 
 
-def get(self, subject_id: int, admission_id: int, icustay_id: int, conn: sqlite3.Connection) -> str:
-    cursor = conn.cursor()
-    query = """
-    SELECT ROW_ID, SUBJECT_ID, HADM_ID, ICUSTAY_ID, DBSOURCE, EVENTTYPE, PREV_CAREUNIT, 
-           CURR_CAREUNIT, PREV_WARDID, CURR_WARDID, INTIME, OUTTIME, LOS
-    FROM transfers
-    WHERE SUBJECT_ID = ? AND HADM_ID = ? AND ICUSTAY_ID = ?
-    """
-    cursor.execute(query, (subject_id, admission_id, icustay_id))
-    row = cursor.fetchone()
-    # print('row:', row)
-    if row:
-        self.ROW_ID, self.SUBJECT_ID, self.HADM_ID, self.ICUSTAY_ID, self.DBSOURCE, self.EVENTTYPE, \
-        self.PREV_CAREUNIT, self.CURR_CAREUNIT, self.PREV_WARDID, self.CURR_WARDID, self.INTIME, \
-        self.OUTTIME, self.LOS = row
+    def get(self, subject_id: int, admission_id: int, icustay_id: int, conn: sqlite3.Connection) -> str:
+        cursor = conn.cursor()
+        query = """
+        SELECT ROW_ID, SUBJECT_ID, HADM_ID, ICUSTAY_ID, DBSOURCE, EVENTTYPE, PREV_CAREUNIT, 
+               CURR_CAREUNIT, PREV_WARDID, CURR_WARDID, INTIME, OUTTIME, LOS
+        FROM transfers
+        WHERE SUBJECT_ID = ? AND HADM_ID = ? AND ICUSTAY_ID = ?
+        """
+        cursor.execute(query, (subject_id, admission_id, icustay_id))
+        row = cursor.fetchone()
+        # print('row:', row)
+        if row:
+            self.ROW_ID, self.SUBJECT_ID, self.HADM_ID, self.ICUSTAY_ID, self.DBSOURCE, self.EVENTTYPE, \
+            self.PREV_CAREUNIT, self.CURR_CAREUNIT, self.PREV_WARDID, self.CURR_WARDID, self.INTIME, \
+            self.OUTTIME, self.LOS = row
 
-        # Convert string timestamps to datetime objects if needed
-        self.INTIME = datetime.strptime(self.INTIME, '%Y-%m-%d %H:%M:%S') if self.INTIME else None
-        self.OUTTIME = datetime.strptime(self.OUTTIME, '%Y-%m-%d %H:%M:%S') if self.OUTTIME else None
+            # Convert string timestamps to datetime objects if needed
+            self.INTIME = datetime.strptime(self.INTIME, '%Y-%m-%d %H:%M:%S') if self.INTIME else None
+            self.OUTTIME = datetime.strptime(self.OUTTIME, '%Y-%m-%d %H:%M:%S') if self.OUTTIME else None
 
-        result = {
-            "ROW_ID": self.ROW_ID,
-            "SUBJECT_ID": self.SUBJECT_ID,
-            "HADM_ID": self.HADM_ID,
-            "ICUSTAY_ID": self.ICUSTAY_ID,
-            "DBSOURCE": self.DBSOURCE,
-            "EVENTTYPE": self.EVENTTYPE,
-            "PREV_CAREUNIT": self.PREV_CAREUNIT,
-            "CURR_CAREUNIT": self.CURR_CAREUNIT,
-            "PREV_WARDID": self.PREV_WARDID,
-            "CURR_WARDID": self.CURR_WARDID,
-            "INTIME": self.INTIME.isoformat() if self.INTIME else None,
-            "OUTTIME": self.OUTTIME.isoformat() if self.OUTTIME else None,
-            "LOS": self.LOS
-        }
-    else:
-        result = {}
+            result = {
+                "ROW_ID": self.ROW_ID,
+                "SUBJECT_ID": self.SUBJECT_ID,
+                "HADM_ID": self.HADM_ID,
+                "ICUSTAY_ID": self.ICUSTAY_ID,
+                "DBSOURCE": self.DBSOURCE,
+                "EVENTTYPE": self.EVENTTYPE,
+                "PREV_CAREUNIT": self.PREV_CAREUNIT,
+                "CURR_CAREUNIT": self.CURR_CAREUNIT,
+                "PREV_WARDID": self.PREV_WARDID,
+                "CURR_WARDID": self.CURR_WARDID,
+                "INTIME": self.INTIME.isoformat() if self.INTIME else None,
+                "OUTTIME": self.OUTTIME.isoformat() if self.OUTTIME else None,
+                "LOS": self.LOS
+            }
+        else:
+            result = {}
 
-    cursor.close()
-    return result
+        cursor.close()
+        return result
 
 if __name__ == '__main__':
     print('start test')
@@ -1440,17 +1442,31 @@ if __name__ == '__main__':
         AND HADM_ID = ?
 
     """    
-    #admission_query = """
-    #    SELECT ROW_ID, SUBJECT_ID, HADM_ID, ADMITTIME, DISCHTIME, DEATHTIME,
-    #    ADMISSION_TYPE, ADMISSION_LOCATION, DISCHARGE_LOCATION, INSURANCE,
-    #    LANGUAGE, RELIGION, MARITAL_STATUS, ETHNICITY, EDREGTIME, EDOUTTIME,
-    #    DIAGNOSIS, HOSPITAL_EXPIRE_FLAG, HAS_CHARTEVENTS_DATA
-    #    FROM admissions
-    #    LIMIT 1
-    #    """
+    admission_query = """
+        SELECT ROW_ID, SUBJECT_ID, HADM_ID, ADMITTIME, DISCHTIME, DEATHTIME,
+        ADMISSION_TYPE, ADMISSION_LOCATION, DISCHARGE_LOCATION, INSURANCE,
+        LANGUAGE, RELIGION, MARITAL_STATUS, ETHNICITY, EDREGTIME, EDOUTTIME,
+        DIAGNOSIS, HOSPITAL_EXPIRE_FLAG, HAS_CHARTEVENTS_DATA
+        FROM admissions
+        LIMIT 1
+        """
+    query = """
+        SELECT ROW_ID, SUBJECT_ID, HADM_ID, ICUSTAY_ID, STARTTIME, ENDTIME, ITEMID, AMOUNT, AMOUNTUOM, 
+               RATE, RATEUOM, STORETIME, CGID, ORDERID, LINKORDERID, ORDERCATEGORYNAME, 
+               SECONDARYORDERCATEGORYNAME, ORDERCOMPONENTTYPEDESCRIPTION, ORDERCATEGORYDESCRIPTION, 
+               PATIENTWEIGHT, TOTALAMOUNT, TOTALAMOUNTUOM, ISOPENBAG, CONTINUEINNEXTDEPT, 
+               CANCELREASON, STATUSDESCRIPTION, COMMENTS_DATE, 
+               ORIGINALAMOUNT, ORIGINALRATE
+        FROM inputevents_mv
+        LIMIT 1
+        """
+    query = """
+        PRAGMA table_info (inputevents_mv)
+    """
     #query_tables = "SELECT name FROM sqlite_master WHERE type='table'"
-    #cursor.execute(admission_query)
-    #row = cursor.fetchall()
+    cursor.execute(query)
+    row = cursor.fetchall()
+    print("row:", row)
     admission = ADMISSION().get(subject_id, admission_id, conn)
     callout = CALLOUT().get(subject_id, admission_id, conn)
     cursor.execute(icu_query, (subject_id, admission_id))
