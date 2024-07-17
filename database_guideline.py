@@ -1469,9 +1469,25 @@ if __name__ == '__main__':
     datetimeevents = {icustay_id: DATETIMEEVENTS().get(subject_id, admission_id, icustay_id, conn)}
     for icustay_id in datetimeevents:
         if "ITEMID" in datetimeevents[icustay_id]:
-            datetimeevents[icustay_id]["D_ITEMS"] = ITEMID().get(datetimeevents[icustay_id]['ITEMID'], conn)
+            datetimeevents[icustay_id]["D_ITEMS"] = D_ITEMS().get(datetimeevents[icustay_id]['ITEMID'], conn)
         if "CGID" in datetimeevents:
             datetimeevents[icustay_id]["CAREGIVERS"] = CAREGIVERS().GET(datetimeevents[icustay_id]["CGID"], conn)
+    diagnoses_icd = DIAGNOSES_ICD().get(subject_id, admission_id, conn)
+    drgcodes = DRGCODES().get(subject_id, admission_id, conn)
+    icustays = {icustay_id: ICUSTAYS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    inputevents_cv = {icustay_id: INPUTEVENTS_CV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    inputevents_mv = {icustay_id: INPUTEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    labevents = LABEVENTS().get(subject_id, admission_id, conn)
+    microbiologyevents = MICROBIOLOGYEVENTS().get(subject_id, admission_id, conn)
+    noteevents = NOTEEVENTS().get(subject_id, admission_id, conn)
+    outputevents = {icustay_id: OUTPUTEVENTS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    patients = PATIENTS().get(subject_id, conn)
+    prescriptions = {icustay_id: PRESCRIPTIONS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    procedures_icd = PROCEDURES_ICD().get(subject_id, admission_id, conn)
+    procedureevents_mv = {icustay_id: PROCEDUREEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+    services = SERVICES().get(subject_id, admission_id, conn)
+    transfers = {icustay_id: TRANSFERS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+
 
 
     print("admission: ", admission)
@@ -1480,6 +1496,21 @@ if __name__ == '__main__':
     print("chartevents: ", chartevents)
     print("cptevents: ", cptevents)
     print("datetimeevents: ", datetimeevents)
+    print("diagnoses_icd: ", diagnoses_icd)
+    print("drgcodes: ", drgcodes)
+    print("icustays: ", icustays)
+    print("inputevents_cv: ", inputevents_cv)
+    print("inputevents_mv: ", inputevents_mv)
+    print("labevents: ", labevents)
+    print("microbiologyevents: ", microbiologyevents)
+    print("noteevents: ", noteevents)
+    print("outputevents: ", outputevents)
+    print("patients: ", patients)
+    print("prescriptions: ", prescriptions)
+    print("procedures_icd: ", procedures_icd)
+    print("procedureevents_mv: ", procedureevents_mv)
+    print("services: ", services)
+    print("transfers: ", transfers)
 
 #print("ADMISSION:",admission)
     #print("fetch result:", admission.get(22, 165315, conn))
