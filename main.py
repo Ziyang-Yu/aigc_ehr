@@ -52,6 +52,40 @@ print(len(ids))
 #    tmp = cursor.fetchall()
 #    admission_ids.append(tmp)
 #print(admission_ids[0])
+
+
+# add index for each table
+
+cursor.execute("CREATE INDEX idx_admissions ON admissions(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_callout ON callout(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_caregivers ON caregivers(CGID)")
+cursor.execute("CREATE INDEX idx_chartevents ON chartevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_cptevents ON cptevents(SUBJECT_ID, HADM_ID)")
+# cursor.execute("CREATE INDEX idx_d_cpt ON d_cpt(CPT_CD)")
+cursor.execute("CREATE INDEX idx_d_icd_diagnoses ON d_icd_diagnoses(ICD9_CODE)")
+cursor.execute("CREATE INDEX idx_d_icd_procedures ON d_icd_procedures(ICD9_CODE)")
+cursor.execute("CREATE INDEX idx_d_items ON d_items(ITEMID)")
+cursor.execute("CREATE INDEX idx_d_labitems ON d_labitems(ITEMID)")
+cursor.execute("CREATE INDEX idx_datetimeevents ON datetimeevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_diagnoses_icd ON diagnoses_icd(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_drgcodes ON drgcodes(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_icustays ON icustays(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_inputevents_cv ON inputevents_cv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_inputevents_mv ON inputevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_labevents ON labevents(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_microbiologyevents ON microbiologyevents(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_noteevents ON noteevents(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_outputevents ON outputevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_patients ON patients(SUBJECT_ID)")
+cursor.execute("CREATE INDEX idx_prescriptions ON prescriptions(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_procedureevents_mv ON procedureevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+cursor.execute("CREATE INDEX idx_procedures_icd ON procedures_icd(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_services ON services(SUBJECT_ID, HADM_ID)")
+cursor.execute("CREATE INDEX idx_transfers ON transfers(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+
+
+
+
 data = {}
 for subject_id, admission_id in tqdm.tqdm(ids):
 

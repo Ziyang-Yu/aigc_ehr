@@ -401,7 +401,7 @@ class D_ICD_PROCEDURES(BaseModel):
         cursor = conn.cursor()
         query = """
         SELECT ROW_ID, ICD9_CODE, SHORT_TITLE, LONG_TITLE
-        FROM d_icd_diagnoses
+        FROM d_icd_precedures
         WHERE ICD9_CODE = ?
         """
         cursor.execute(query, (icd9_code,))
