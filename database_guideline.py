@@ -229,7 +229,7 @@ class CHARTEVENTS(BaseModel):
         FROM chartevents
         WHERE SUBJECT_ID = ? AND HADM_ID = ? AND ICUSTAY_ID = ?
         """
-        print("type of icustay_id: ", type(icustay_id))
+        #print("type of icustay_id: ", type(icustay_id))
         cursor.execute(query, (subject_id, admission_id, icustay_id))
         row = cursor.fetchone()
         # print('row:', row)
@@ -825,7 +825,7 @@ class INPUTEVENTS_MV(BaseModel):
             self.CGID, self.ORDERID, self.LINKORDERID, self.ORDERCATEGORYNAME, self.SECONDARYORDERCATEGORYNAME, \
             self.ORDERCOMPONENTTYPEDESCRIPTION, self.ORDERCATEGORYDESCRIPTION, self.PATIENTWEIGHT, \
             self.TOTALAMOUNT, self.TOTALAMOUNTUOM, self.ISOPENBAG, self.CONTINUEINNEXTDEPT, self.CANCELREASON, \
-            self.STATUSDESCRIPTION, self.COMMENTS_, self.COMMENTS_TITLE, self.COMMENTS_DATE, \
+            self.STATUSDESCRIPTION, self.COMMENTS_EDITEDBY, self.COMMENTS_CANCELEDBY, self.COMMENTS_DATE, \
             self.ORIGINALAMOUNT, self.ORIGINALRATE = row
 
             # Convert string timestamps to datetime objects if needed
@@ -861,8 +861,8 @@ class INPUTEVENTS_MV(BaseModel):
                 "CONTINUEINNEXTDEPT": self.CONTINUEINNEXTDEPT,
                 "CANCELREASON": self.CANCELREASON,
                 "STATUSDESCRIPTION": self.STATUSDESCRIPTION,
-                "COMMENTS_STATUS": self.COMMENTS_STATUS,
-                "COMMENTS_TITLE": self.COMMENTS_TITLE,
+                "COMMENTS_EDITEDBY": self.COMMENTS_EDITEDBY,
+                "COMMENTS_CANCELEDBY": self.COMMENTS_CANCELEDBY,
                 "COMMENTS_DATE": self.COMMENTS_DATE.isoformat() if self.COMMENTS_DATE else None,
                 "ORIGINALAMOUNT": self.ORIGINALAMOUNT,
                 "ORIGINALRATE": self.ORIGINALRATE
