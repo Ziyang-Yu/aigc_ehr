@@ -2,6 +2,10 @@ import sqlite3
 import tqdm
 from database_guideline import *
 
+from transformers import AutoTokenizer, BioGptModel
+import torch
+import faiss
+
    
     # Connect to DB and create a cursor
 conn = sqlite3.connect('../physionet.org/files/mimiciii/1.4/mimic3.db')
@@ -87,102 +91,164 @@ cursor.execute("CREATE INDEX idx_transfers ON transfers(SUBJECT_ID, HADM_ID, ICU
 
 
 data = {}
-for subject_id, admission_id in tqdm.tqdm(ids):
 
-    icu_query = """
-        SELECT ICUSTAY_ID
-        FROM icustays
-        WHERE SUBJECT_ID = ?
-        AND HADM_ID = ?
+def save_data():
+    for subject_id, admission_id in tqdm.tqdm(ids):
 
-    """    
-    admission = ADMISSION().get(subject_id, admission_id, conn)
-    callout = CALLOUT().get(subject_id, admission_id, conn)
-    cursor.execute(icu_query, (subject_id, admission_id))
-    icustay_ids = [t[0] for t in cursor.fetchall()]
-    chartevents = {icustay_id: CHARTEVENTS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    for icustay_id in chartevents:
-        if "ITEMID" in chartevents:
-            chartevents[icustay_id]['ITEMID'] = D_ITEMS().get(chartevents[icustay_id]['ITEMID'], conn)
-    for icustay_id in chartevents:
-        if "CGID" in chartevents[icustay_id]:
-            #print("chartevents[icustay_id]: ", type(chartevents[icustay_id]))
-            chartevents[icustay_id]["CAREGIVERS"] = CAREGIVERS().get(chartevents[icustay_id]["CGID"], conn)
-    cptevents = CPTEVENTS().get(subject_id, admission_id, conn)
-    if "CPT_CD" in cptevents:
-        cptevents["D_CPT"] = D_CPT().get(cptevents["CPT_CD"], conn)
-    datetimeevents = {icustay_id: DATETIMEEVENTS().get(subject_id, admission_id, icustay_id, conn)}
-    for icustay_id in datetimeevents:
-        if "ITEMID" in datetimeevents[icustay_id]:
-            datetimeevents[icustay_id]["D_ITEMS"] = D_ITEMS().get(datetimeevents[icustay_id]['ITEMID'], conn)
-        if "CGID" in datetimeevents:
-            datetimeevents[icustay_id]["CAREGIVERS"] = CAREGIVERS().GET(datetimeevents[icustay_id]["CGID"], conn)
-    diagnoses_icd = DIAGNOSES_ICD().get(subject_id, admission_id, conn)
-    drgcodes = DRGCODES().get(subject_id, admission_id, conn)
-    icustays = {icustay_id: ICUSTAYS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    inputevents_cv = {icustay_id: INPUTEVENTS_CV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    inputevents_mv = {icustay_id: INPUTEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    labevents = LABEVENTS().get(subject_id, admission_id, conn)
-    microbiologyevents = MICROBIOLOGYEVENTS().get(subject_id, admission_id, conn)
-    noteevents = NOTEEVENTS().get(subject_id, admission_id, conn)
-    outputevents = {icustay_id: OUTPUTEVENTS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    patients = PATIENTS().get(subject_id, conn)
-    prescriptions = {icustay_id: PRESCRIPTIONS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    procedures_icd = PROCEDURES_ICD().get(subject_id, admission_id, conn)
-    procedureevents_mv = {icustay_id: PROCEDUREEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
-    services = SERVICES().get(subject_id, admission_id, conn)
-    transfers = {icustay_id: TRANSFERS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        icu_query = """
+            SELECT ICUSTAY_ID
+            FROM icustays
+            WHERE SUBJECT_ID = ?
+            AND HADM_ID = ?
+
+        """    
+        admission = ADMISSION().get(subject_id, admission_id, conn)
+        callout = CALLOUT().get(subject_id, admission_id, conn)
+        cursor.execute(icu_query, (subject_id, admission_id))
+        icustay_ids = [t[0] for t in cursor.fetchall()]
+        chartevents = {icustay_id: CHARTEVENTS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        for icustay_id in chartevents:
+            if "ITEMID" in chartevents:
+                chartevents[icustay_id]['ITEMID'] = D_ITEMS().get(chartevents[icustay_id]['ITEMID'], conn)
+        for icustay_id in chartevents:
+            if "CGID" in chartevents[icustay_id]:
+                #print("chartevents[icustay_id]: ", type(chartevents[icustay_id]))
+                chartevents[icustay_id]["CAREGIVERS"] = CAREGIVERS().get(chartevents[icustay_id]["CGID"], conn)
+        cptevents = CPTEVENTS().get(subject_id, admission_id, conn)
+        if "CPT_CD" in cptevents:
+            cptevents["D_CPT"] = D_CPT().get(cptevents["CPT_CD"], conn)
+        datetimeevents = {icustay_id: DATETIMEEVENTS().get(subject_id, admission_id, icustay_id, conn)}
+        for icustay_id in datetimeevents:
+            if "ITEMID" in datetimeevents[icustay_id]:
+                datetimeevents[icustay_id]["D_ITEMS"] = D_ITEMS().get(datetimeevents[icustay_id]['ITEMID'], conn)
+            if "CGID" in datetimeevents:
+                datetimeevents[icustay_id]["CAREGIVERS"] = CAREGIVERS().GET(datetimeevents[icustay_id]["CGID"], conn)
+        diagnoses_icd = DIAGNOSES_ICD().get(subject_id, admission_id, conn)
+        drgcodes = DRGCODES().get(subject_id, admission_id, conn)
+        icustays = {icustay_id: ICUSTAYS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        inputevents_cv = {icustay_id: INPUTEVENTS_CV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        inputevents_mv = {icustay_id: INPUTEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        labevents = LABEVENTS().get(subject_id, admission_id, conn)
+        microbiologyevents = MICROBIOLOGYEVENTS().get(subject_id, admission_id, conn)
+        noteevents = NOTEEVENTS().get(subject_id, admission_id, conn)
+        outputevents = {icustay_id: OUTPUTEVENTS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        patients = PATIENTS().get(subject_id, conn)
+        prescriptions = {icustay_id: PRESCRIPTIONS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        procedures_icd = PROCEDURES_ICD().get(subject_id, admission_id, conn)
+        procedureevents_mv = {icustay_id: PROCEDUREEVENTS_MV().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
+        services = SERVICES().get(subject_id, admission_id, conn)
+        transfers = {icustay_id: TRANSFERS().get(subject_id, admission_id, icustay_id, conn) for icustay_id in icustay_ids}
 
 
 
-    #print("admission: ", admission)
-    #print("callout: ", callout)
-    #print("icustayids: ", icustay_ids)
-    #print("chartevents: ", chartevents)
-    #print("cptevents: ", cptevents)
-    #print("datetimeevents: ", datetimeevents)
-    #print("diagnoses_icd: ", diagnoses_icd)
-    #print("drgcodes: ", drgcodes)
-    #print("icustays: ", icustays)
-    #print("inputevents_cv: ", inputevents_cv)
-    #print("inputevents_mv: ", inputevents_mv)
-    #print("labevents: ", labevents)
-    #print("microbiologyevents: ", microbiologyevents)
-    #print("noteevents: ", noteevents)
-    #print("outputevents: ", outputevents)
-    #print("patients: ", patients)
-    #print("prescriptions: ", prescriptions)
-    #print("procedures_icd: ", procedures_icd)
-    #print("procedureevents_mv: ", procedureevents_mv)
-    #print("services: ", services)
-    #print("transfers: ", transfers)
-    #print(type(admission))
-    context = {
-        "admission": admission,
-        "callout": callout,
-        "chartevents": chartevents,
-        "cptevents": cptevents,
-        "datetimeevents": datetimeevents,
-        "diagnoses_icd": diagnoses_icd,
-        "drgcodes": drgcodes,
-        "icustays": icustays,
-        "inputevents_cv": inputevents_cv,
-        "inputevents_mv": inputevents_mv,
-        "labevents": labevents,
-        "microbiologyevents": microbiologyevents,
-        "noteevents": noteevents,
-        "outputevents": outputevents,
-        "patients": patients,
-        "prescriptions": prescriptions,
-        "procedures_icd": procedures_icd,
-        "procedureevents_mv": procedureevents_mv,
-        "services": services,
-        "transfers": transfers
-    }
-    #print("context: ", context)
-    #break
-    data[(subject_id, admission_id)] = context
-data = json.dumps(data)
-with open("data.txt", "w") as my_file:
-    my_file.write(data)
-print("done")
+        #print("admission: ", admission)
+        #print("callout: ", callout)
+        #print("icustayids: ", icustay_ids)
+        #print("chartevents: ", chartevents)
+        #print("cptevents: ", cptevents)
+        #print("datetimeevents: ", datetimeevents)
+        #print("diagnoses_icd: ", diagnoses_icd)
+        #print("drgcodes: ", drgcodes)
+        #print("icustays: ", icustays)
+        #print("inputevents_cv: ", inputevents_cv)
+        #print("inputevents_mv: ", inputevents_mv)
+        #print("labevents: ", labevents)
+        #print("microbiologyevents: ", microbiologyevents)
+        #print("noteevents: ", noteevents)
+        #print("outputevents: ", outputevents)
+        #print("patients: ", patients)
+        #print("prescriptions: ", prescriptions)
+        #print("procedures_icd: ", procedures_icd)
+        #print("procedureevents_mv: ", procedureevents_mv)
+        #print("services: ", services)
+        #print("transfers: ", transfers)
+        #print(type(admission))
+        context = {
+            "admission": admission,
+            "callout": callout,
+            "chartevents": chartevents,
+            "cptevents": cptevents,
+            "datetimeevents": datetimeevents,
+            "diagnoses_icd": diagnoses_icd,
+            "drgcodes": drgcodes,
+            "icustays": icustays,
+            "inputevents_cv": inputevents_cv,
+            "inputevents_mv": inputevents_mv,
+            "labevents": labevents,
+            "microbiologyevents": microbiologyevents,
+            "noteevents": noteevents,
+            "outputevents": outputevents,
+            "patients": patients,
+            "prescriptions": prescriptions,
+            "procedures_icd": procedures_icd,
+            "procedureevents_mv": procedureevents_mv,
+            "services": services,
+            "transfers": transfers
+        }
+        #print("context: ", context)
+        #break
+        data[(subject_id, admission_id)] = context
+    data = json.dumps(data)
+    with open("data.txt", "w") as my_file:
+        my_file.write(data)
+    print("done")
+
+
+def get_data():
+    with open("data.txt", "r") as my_file:
+        data = my_file.read()
+    data = json.loads(data)
+    res = {}
+    for key in data:
+        res[tuple(key)] = data[key]
+    return res
+
+def main():
+
+    data = get_data()
+
+    X, Y = [], []
+
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/biogpt")
+    model = BioGptModel.from_pretrained("microsoft/biogpt")
+
+    # inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
+    # outputs = model(**inputs)
+
+    # encoding = outputs.last_hidden_state
+
+    for key in data:
+        context = data[key]
+        Y.append(context["prescriptions"])
+        del context["prescriptions"]
+        del context['noteevents']
+        X.append(json.dump(context))
+        print("X: ", X[0])
+        print("Y: ", Y[0])
+        break
+    
+    encodings = []
+    for i in range(len(X)):
+        inputs = tokenizer(X[i], return_tensors="pt")
+        outputs = model(**inputs)
+        encoding = outputs.last_hidden_state
+        encodings.append(encoding)
+    encodings = torch.cat(encodings, dim=0)
+    encodings = encodings.numpy()
+
+    # Dimension of vectors
+    d = encodings.shape[1]
+
+    # Create an index
+    index = faiss.IndexFlatL2(d)
+
+    # Add vectors to the index
+    index.add(encodings)
+
+    # Search for the nearest neighbors of a vector
+
+    train_X = encodings[:30]
+    for i in range(30):
+        D, I = index.search(train_X[i:i+1], 2)
+        print("D: ", D)
+        print("I: ", I)
