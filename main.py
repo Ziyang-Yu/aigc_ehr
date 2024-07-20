@@ -2,36 +2,21 @@ import sqlite3
 import tqdm
 from database_guideline import *
 
-from transformers import AutoTokenizer, BioGptModel
+from transformers import AutoTokenizer, BioGptModel, AutoModel, BioGptTokenizer, BioGptForCausalLM
+from transformers.activations import ACT2FN
+import os
 import torch
+import torch.nn as nn
 import faiss
-
-   
+import tqdm
+import argparse
     # Connect to DB and create a cursor
 conn = sqlite3.connect('../physionet.org/files/mimiciii/1.4/mimic3.db')
-    # cursor = sqliteConnection.cursor()
-    # print('DB Init')
- 
-    # Write a query and execute it with cursor
-    #query = 'SELECT TEXT \
-    #         FROM NOTEEVENTS \
-    #         ORDER BY ROW_ID \
-    #         LIMIT 1 \
-    #          OFFSET 1; '
-    # cursor.execute(query)
- 
-    # Fetch and output result
-    # result = cursor.fetchall()[0][0]
-    # print(result)
- 
-    # Close the cursor
-    # cursor.close()
- 
-# Handle errors
-# except sqlite3.Error as error:
-#     print('Error occurred - ', error)
-
-
+config = {
+    "pooler_hidden_size": 768,
+    "batch_size": 1024,
+}
+config = argparse.Namespace(**config)
 cursor = conn.cursor()
 
 # Query to retrieve all subject IDs
@@ -44,8 +29,8 @@ cursor.execute(query)
 ids = cursor.fetchall()
 #subject_ids = [id[0] for id in subject_ids]
 
-print(ids[0])
-print(len(ids))
+#print(ids[0])
+#print(len(ids))
 
 # Query to retrieve all admission IDs for the given subject ID
 #query = "SELECT hadm_id FROM admissions WHERE subject_id = ?"
@@ -59,40 +44,77 @@ print(len(ids))
 
 
 # add index for each table
-
-cursor.execute("CREATE INDEX idx_admissions ON admissions(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_callout ON callout(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_caregivers ON caregivers(CGID)")
-cursor.execute("CREATE INDEX idx_chartevents ON chartevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_cptevents ON cptevents(SUBJECT_ID, HADM_ID)")
+def add_index():
+    try:
+        cursor.execute("CREATE INDEX idx_admissions ON admissions(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_callout ON callout(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_caregivers ON caregivers(CGID)")
+        cursor.execute("CREATE INDEX idx_chartevents ON chartevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_cptevents ON cptevents(SUBJECT_ID, HADM_ID)")
 # cursor.execute("CREATE INDEX idx_d_cpt ON d_cpt(CPT_CD)")
-cursor.execute("CREATE INDEX idx_d_icd_diagnoses ON d_icd_diagnoses(ICD9_CODE)")
-cursor.execute("CREATE INDEX idx_d_icd_procedures ON d_icd_procedures(ICD9_CODE)")
-cursor.execute("CREATE INDEX idx_d_items ON d_items(ITEMID)")
-cursor.execute("CREATE INDEX idx_d_labitems ON d_labitems(ITEMID)")
-cursor.execute("CREATE INDEX idx_datetimeevents ON datetimeevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_diagnoses_icd ON diagnoses_icd(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_drgcodes ON drgcodes(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_icustays ON icustays(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_inputevents_cv ON inputevents_cv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_inputevents_mv ON inputevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_labevents ON labevents(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_microbiologyevents ON microbiologyevents(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_noteevents ON noteevents(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_outputevents ON outputevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_patients ON patients(SUBJECT_ID)")
-cursor.execute("CREATE INDEX idx_prescriptions ON prescriptions(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_procedureevents_mv ON procedureevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
-cursor.execute("CREATE INDEX idx_procedures_icd ON procedures_icd(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_services ON services(SUBJECT_ID, HADM_ID)")
-cursor.execute("CREATE INDEX idx_transfers ON transfers(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_d_icd_diagnoses ON d_icd_diagnoses(ICD9_CODE)")
+        cursor.execute("CREATE INDEX idx_d_icd_procedures ON d_icd_procedures(ICD9_CODE)")
+        cursor.execute("CREATE INDEX idx_d_items ON d_items(ITEMID)")
+        cursor.execute("CREATE INDEX idx_d_labitems ON d_labitems(ITEMID)")
+        cursor.execute("CREATE INDEX idx_datetimeevents ON datetimeevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_diagnoses_icd ON diagnoses_icd(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_drgcodes ON drgcodes(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_icustays ON icustays(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_inputevents_cv ON inputevents_cv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_inputevents_mv ON inputevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_labevents ON labevents(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_microbiologyevents ON microbiologyevents(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_noteevents ON noteevents(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_outputevents ON outputevents(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_patients ON patients(SUBJECT_ID)")
+        cursor.execute("CREATE INDEX idx_prescriptions ON prescriptions(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_procedureevents_mv ON procedureevents_mv(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+        cursor.execute("CREATE INDEX idx_procedures_icd ON procedures_icd(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_services ON services(SUBJECT_ID, HADM_ID)")
+        cursor.execute("CREATE INDEX idx_transfers ON transfers(SUBJECT_ID, HADM_ID, ICUSTAY_ID)")
+    except:
+        print("Index already exists")
+
+class NonParamPooler(torch.nn.Module):
+    def __init__(self, config):
+        super().__init__()
+
+    def forward(self, hidden_states):
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        context_token = hidden_states[:, 0]
+        return context_token
+
+    @property
+    def output_dim(self):
+        return self.config.hidden_size
 
 
+class ContextPooler(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.pooler_hidden_size, config.pooler_hidden_size)
+        self.dropout = StableDropout(config.pooler_dropout)
+        self.config = config
+
+    def forward(self, hidden_states):
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+
+        context_token = hidden_states[:, 0]
+        context_token = self.dropout(context_token)
+        pooled_output = self.dense(context_token)
+        pooled_output = ACT2FN[self.config.pooler_hidden_act](pooled_output)
+        return pooled_output
+
+    @property
+    def output_dim(self):
+        return self.config.hidden_size
 
 
-data = {}
 
 def save_data():
+    data = {}
     for subject_id, admission_id in tqdm.tqdm(ids):
 
         icu_query = """
@@ -187,68 +209,104 @@ def save_data():
         }
         #print("context: ", context)
         #break
-        data[(subject_id, admission_id)] = context
+        data[f"({subject_id}, {admission_id})"] = context
+        #break
     data = json.dumps(data)
     with open("data.txt", "w") as my_file:
         my_file.write(data)
+        
     print("done")
 
 
 def get_data():
     with open("data.txt", "r") as my_file:
         data = my_file.read()
-    data = json.loads(data)
+        data = json.loads(data)
     res = {}
     for key in data:
         res[tuple(key)] = data[key]
     return res
 
-def main():
-
+if __name__ == "__main__":
+    #save_data
+    #save_data()
     data = get_data()
 
     X, Y = [], []
 
     tokenizer = AutoTokenizer.from_pretrained("microsoft/biogpt")
-    model = BioGptModel.from_pretrained("microsoft/biogpt")
+    model = BioGptModel.from_pretrained("microsoft/biogpt").to("cuda")
 
     # inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
     # outputs = model(**inputs)
 
     # encoding = outputs.last_hidden_state
 
-    for key in data:
+    for key in tqdm.tqdm(data):
         context = data[key]
         Y.append(context["prescriptions"])
         del context["prescriptions"]
         del context['noteevents']
-        X.append(json.dump(context))
-        print("X: ", X[0])
-        print("Y: ", Y[0])
-        break
-    
-    encodings = []
-    for i in range(len(X)):
-        inputs = tokenizer(X[i], return_tensors="pt")
-        outputs = model(**inputs)
-        encoding = outputs.last_hidden_state
-        encodings.append(encoding)
-    encodings = torch.cat(encodings, dim=0)
-    encodings = encodings.numpy()
+        X.append(json.dumps(context))
 
+    #print("X[0]: ", X[0])
+    #print("X[1]: ", X[1])
+        #break
+    try:
+        encodings = torch.load("cache/encodings.pt").cpu().numpy()
+        #raise Exception
+    except Exception as e:
+        #print(e)
+        encodings = []
+        with torch.no_grad():
+            for i in tqdm.tqdm(range(0, len(X), config.batch_size)):
+                inputs = tokenizer(X[i: i+config.batch_size], truncation=True, padding=True, max_length=20, return_tensors="pt").to("cuda")
+                #print("type of inputs: ", type(inputs))
+                #print(inputs[:2])
+                outputs = model(**(inputs))
+                #print(outputs.last_hidden_state.shape)
+                encoding = outputs.last_hidden_state
+                #print(torch.eq(encoding[0], encoding[1]))
+                encoding = torch.mean(encoding, dim=1)
+                #encoding = NonParamPooler(config)(encoding)
+                #print(encoding)
+                #if i == 2*config.batch_size:
+
+                #break
+                encodings.append(encoding)
+                #break
+        encodings = torch.cat(encodings, dim=0)
+        torch.save(encodings, "cache/encodings.pt")
+        encodings = encodings.detach().cpu().numpy()
+    #torch.save(X, "X.pt")
+
+
+    print("encodings.shape: ", encodings.shape)
     # Dimension of vectors
     d = encodings.shape[1]
+    # GPU config
+    
+    gpu_ids = "0"  # can be e.g. "3,4" for multiple GPUs 
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
 
+    # Setup
+    cpu_index = faiss.IndexFlatL2(d)
+    gpu_index = faiss.index_cpu_to_all_gpus(cpu_index)
+    gpu_index.add(encodings)
+    print("encodings[0]", encodings[0])
+    print("encodings[1]", encodings[1])
+    print("encodings[100]", encodings[100])
+    print("encodings[200]", encodings[200])
+    #torch.save(X, "X.pt")
     # Create an index
-    index = faiss.IndexFlatL2(d)
+    #index = faiss.IndexFlatL2(d)
 
     # Add vectors to the index
-    index.add(encodings)
+    #index.add(encodings)
 
     # Search for the nearest neighbors of a vector
-
-    train_X = encodings[:30]
-    for i in range(30):
-        D, I = index.search(train_X[i:i+1], 2)
-        print("D: ", D)
-        print("I: ", I)
+    train_X = encodings[:10]
+    print(train_X)
+    D, I = gpu_index.search(train_X, 2)
+    print("D: ", D)
+    print("I: ", I)

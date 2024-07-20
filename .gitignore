@@ -1,2 +1,5 @@
 mimic-iii*
 phy*
+cache/
+data.txt
+__pycache__
