@@ -2,6 +2,7 @@ import sqlite3
 import tqdm
 from database_guideline import *
 
+from utils import delete, delete_empty
 from transformers import AutoTokenizer, BioGptModel, AutoModel, BioGptTokenizer, BioGptForCausalLM
 from transformers.activations import ACT2FN
 import os
@@ -14,7 +15,7 @@ import argparse
 conn = sqlite3.connect('../physionet.org/files/mimiciii/1.4/mimic3.db')
 config = {
     "pooler_hidden_size": 768,
-    "batch_size": 1024,
+    "batch_size": 1,
 }
 config = argparse.Namespace(**config)
 cursor = conn.cursor()
@@ -207,10 +208,21 @@ def save_data():
             "services": services,
             "transfers": transfers
         }
+        #delete(context)
         #print("context: ", context)
         #break
+        del context["prescriptions"]
+        del context['noteevents']
+        delete(context)
+        delete_empty(context)
+        print("context: ", context)
+        
+        tokenizer = AutoTokenizer.from_pretrained("microsoft/biogpt")
+        context = json.dumps(context)
+        inputs = tokenizer(context, return_tensors="pt")
+        print("inputs.shape: ", inputs.input_ids.shape)
         data[f"({subject_id}, {admission_id})"] = context
-        #break
+        break
     data = json.dumps(data)
     with open("data.txt", "w") as my_file:
         my_file.write(data)
@@ -260,9 +272,13 @@ if __name__ == "__main__":
         encodings = []
         with torch.no_grad():
             for i in tqdm.tqdm(range(0, len(X), config.batch_size)):
-                inputs = tokenizer(X[i: i+config.batch_size], truncation=True, padding=True, max_length=20, return_tensors="pt").to("cuda")
+                print("X[0]", X[0])
+                inputs = tokenizer(X[i: i+config.batch_size], return_tensors="pt").to("cuda")
+
                 #print("type of inputs: ", type(inputs))
                 #print(inputs[:2])
+                print("inputs.shape: ", inputs.input_ids.shape)
+                break
                 outputs = model(**(inputs))
                 #print(outputs.last_hidden_state.shape)
                 encoding = outputs.last_hidden_state
