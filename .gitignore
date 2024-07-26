@@ -3,3 +3,4 @@ phy*
 cache/
 data.txt
 __pycache__
+env/

@@ -13,7 +13,7 @@
 
 # #### the data contains unnecessary newlines, tags, and URLs it will be necessary to remove them before preprocessing.
 
-# In[ ]:
+# In[1]:
 
 
 import pandas as pd
@@ -21,51 +21,20 @@ import numpy as np
 import re
 
 
-# In[ ]:
-
-
-def cleaning(s):
-    s = str(s)
-    s = re.sub('\s\W',' ',s)
-    s = re.sub('\W,\s',' ',s)
-    s = re.sub("\d+", "", s)
-    s = re.sub('\s+',' ',s)
-    s = re.sub('[!@#$_]', '', s)
-    s = s.replace("co","")
-    s = s.replace("https","")
-    s = s.replace("[\w*"," ")
-    return s
-
-
-# In[ ]:
-
-
-df = pd.read_csv("Articles.csv", encoding="ISO-8859-1") 
-df = df.dropna()
-text_data = open('Articles.txt', 'w')
-for idx, item in df.iterrows():
-  article = cleaning(item["Article"])
-  text_data.write(article)
-text_data.close()
-
-
 # ## Step 2. Model Training
 
-# In[ ]:
+# In[2]:
 
 
-get_ipython().system('pip install transformers')
 
-
-# In[ ]:
+# In[3]:
 
 
 from transformers import TextDataset, DataCollatorForLanguageModeling
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 from transformers import Trainer, TrainingArguments
 
-
-# In[ ]:
+# In[4]:
 
 
 def load_dataset(file_path, tokenizer, block_size = 128):
@@ -73,6 +42,7 @@ def load_dataset(file_path, tokenizer, block_size = 128):
         tokenizer = tokenizer,
         file_path = file_path,
         block_size = block_size,
+        
     )
     return dataset
 
@@ -91,16 +61,21 @@ def train(train_file_path,model_name,
           per_device_train_batch_size,
           num_train_epochs,
           save_steps):
+
+  print("Start loading model")
   tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+  print("Start loading dataset")
   train_dataset = load_dataset(train_file_path, tokenizer)
+  print("Start loading collator")
   data_collator = load_data_collator(tokenizer)
-
-  tokenizer.save_pretrained(output_dir)
-      
+  print("Start saving tokenizer")
+  # tokenizer.save_pretrained(output_dir)
+  print("Start loading tokenizer")
   model = GPT2LMHeadModel.from_pretrained(model_name)
+  print("Start saving model")
+  # model.save_pretrained(output_dir)
 
-  model.save_pretrained(output_dir)
-
+  print("Finish loading")
   training_args = TrainingArguments(
           output_dir=output_dir,
           overwrite_output_dir=overwrite_output_dir,
@@ -123,9 +98,9 @@ def train(train_file_path,model_name,
 
 
 # you need to set parameters 
-train_file_path = "/content/drive/MyDrive/Articles.txt"
+train_file_path = "/home/aigc_ehr/cache/output.txt"
 model_name = 'gpt2'
-output_dir = '/content/drive/MyDrive/result'
+output_dir = '/home/aigc_ehr/cache/'
 overwrite_output_dir = False
 per_device_train_batch_size = 8
 num_train_epochs = 5.0
@@ -134,6 +109,7 @@ save_steps = 500
 
 # In[ ]:
 
+print("Start training")
 
 # It takes about 30 minutes to train in colab.
 train(
@@ -146,50 +122,6 @@ train(
     save_steps=save_steps
 )
 
-
-# ## Step 3. Inference
-
-# In[ ]:
-
-
-from transformers import PreTrainedTokenizerFast, GPT2LMHeadModel, GPT2TokenizerFast, GPT2Tokenizer
-
-
-# In[ ]:
-
-
-def load_model(model_path):
-    model = GPT2LMHeadModel.from_pretrained(model_path)
-    return model
-
-
-def load_tokenizer(tokenizer_path):
-    tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_path)
-    return tokenizer
-
-
-def generate_text(sequence, max_length):
-    model_path = "/content/drive/MyDrive/result"
-    model = load_model(model_path)
-    tokenizer = load_tokenizer(model_path)
-    ids = tokenizer.encode(f'{sequence}', return_tensors='pt')
-    final_outputs = model.generate(
-        ids,
-        do_sample=True,
-        max_length=max_length,
-        pad_token_id=model.config.eos_token_id,
-        top_k=50,
-        top_p=0.95,
-    )
-    print(tokenizer.decode(final_outputs[0], skip_special_tokens=True))
-
-
-# In[ ]:
-
-
-sequence = input() # oil price
-max_len = int(input()) # 20
-generate_text(sequence, max_len) # oil price for July June which had been low at as low as was originally stated Prices have since resumed
 
 
 # The following process may be a little more complicated or tedious because you have to write the code one by one, and it takes a long time if you don't have a personal GPU.
